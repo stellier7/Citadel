@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Citadel — Decentralized Real Estate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0C0F;
+    --bg-elev:#111419;
+    --surface:#161A20;
+    --surface-2:#1D222A;
+    --border:#262B33;
+    --border-soft:#1D2129;
+    --brass:#C9A227;
+    --brass-bright:#E8C766;
+    --brass-dim:rgba(201,162,39,0.18);
+    --steel:#6C86A8;
+    --text:#F3F1EA;
+    --text-muted:#8A92A0;
+    --text-faint:#5A616D;
+    --success:#4FAE7C;
+    --danger:#C4664A;
+    --radius-s:3px;
+    --radius-m:6px;
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Space Grotesk', sans-serif;
+    --body: 'Manrope', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--body);
+    line-height:1.5;
+    overflow-x:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--brass-dim); color:var(--brass-bright);}
+  a{color:inherit; text-decoration:none;}
+  button{font-family:inherit; cursor:pointer;}
+
+  /* background blueprint grid texture */
+  .grid-texture{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size:64px 64px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 90%);
+  }
+
+  /* ===== NAV ===== */
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 40px;
+    background:rgba(10,12,15,0.72);
+    backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .logo{
+    display:flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:600; font-size:18px; letter-spacing:0.02em;
+  }
+  .logo-mark{width:20px; height:20px; flex-shrink:0;}
+  .nav-links{display:flex; align-items:center; gap:32px;}
+  .nav-link{
+    font-size:14px; color:var(--text-muted); font-weight:500;
+    padding:6px 0; border-bottom:1px solid transparent; transition:color .2s;
+  }
+  .nav-link:hover, .nav-link.active{color:var(--text); border-bottom-color:var(--brass);}
+  .wallet-btn{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    padding:9px 16px; border-radius:var(--radius-s); font-size:13px; font-weight:600;
+    display:flex; align-items:center; gap:8px; transition:all .2s;
+    font-family:var(--mono);
+  }
+  .wallet-btn:hover{border-color:var(--brass); background:var(--brass-dim);}
+  .wallet-btn .dot{width:6px; height:6px; border-radius:50%; background:var(--text-faint);}
+  .wallet-btn.connected .dot{background:var(--success); box-shadow:0 0 8px var(--success);}
+  @media(max-width:900px){ .nav-links{display:none;} nav{padding:16px 20px;} }
+
+  /* ===== PAGES ===== */
+  .page{display:none; position:relative; z-index:1;}
+  .page.active{display:block;}
+
+  /* ===== HERO ===== */
+  .hero{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    position:relative; padding:140px 40px 80px; overflow:hidden;
+  }
+  .hero-inner{
+    max-width:1200px; width:100%; display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center;
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.12em; text-transform:uppercase;
+    color:var(--brass); display:flex; align-items:center; gap:8px; margin-bottom:20px;
+  }
+  .eyebrow::before{content:''; width:16px; height:1px; background:var(--brass);}
+  h1.hero-title{
+    font-family:var(--display); font-weight:600; font-size:clamp(38px,5vw,58px);
+    line-height:1.05; letter-spacing:-0.01em; margin-bottom:22px;
+  }
+  h1.hero-title .accent{color:var(--brass);}
+  .hero-sub{color:var(--text-muted); font-size:17px; line-height:1.65; max-width:440px; margin-bottom:32px;}
+  .hero-cta{display:flex; gap:14px; flex-wrap:wrap;}
+  .btn-primary{
+    background:var(--brass); color:#0A0C0F; padding:14px 26px; border-radius:var(--radius-s);
+    font-weight:700; font-size:14px; border:1px solid var(--brass); transition:all .2s;
+  }
+  .btn-primary:hover{background:var(--brass-bright); border-color:var(--brass-bright); transform:translateY(-1px);}
+  .btn-secondary{
+    background:transparent; color:var(--text); padding:14px 26px; border-radius:var(--radius-s);
+    font-weight:600; font-size:14px; border:1px solid var(--border); transition:all .2s;
+  }
+  .btn-secondary:hover{border-color:var(--steel); background:rgba(108,134,168,0.08);}
+  .hero-stats{display:flex; gap:28px; margin-top:40px;}
+  .hero-stat-label{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:4px;}
+  .hero-stat-val{font-family:var(--mono); font-size:20px; font-weight:600; color:var(--text);}
+
+  /* pyramid signature */
+  .pyramid-wrap{
+    position:relative; display:flex; flex-direction:column-reverse; align-items:center; gap:5px;
+    perspective:1000px;
+  }
+  .pyramid-row{display:flex; gap:5px;}
+  .token-block{
+    width:22px; height:22px; border-radius:2px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    transition:transform .3s, background .3s, box-shadow .3s;
+    opacity:0; transform:translateY(14px);
+    animation:blockIn .5s forwards;
+  }
+  .token-block.filled{
+    background:linear-gradient(145deg, var(--brass-bright), var(--brass));
+    border-color:var(--brass-bright);
+    box-shadow:0 0 14px rgba(201,162,39,0.35);
+  }
+  .token-block:hover{transform:translateY(-3px) scale(1.08);}
+  @keyframes blockIn{ to{opacity:1; transform:translateY(0);} }
+  .pyramid-caption{
+    margin-top:22px; text-align:center; font-family:var(--mono); font-size:12px; color:var(--text-faint);
+  }
+  .pyramid-caption strong{color:var(--brass-bright);}
+  @media(max-width:900px){
+    .hero-inner{grid-template-columns:1fr; text-align:left;}
+    .pyramid-wrap{transform:scale(0.7); margin:0 auto;}
+  }
+
+  /* reveal on scroll */
+  .reveal{opacity:0; transform:translateY(26px); transition:opacity .7s ease, transform .7s ease;}
+  .reveal.visible{opacity:1; transform:translateY(0);}
+
+  /* ===== SECTIONS ===== */
+  section{padding:100px 40px; position:relative;}
+  .section-inner{max-width:1200px; margin:0 auto;}
+  .section-head{max-width:560px; margin-bottom:56px;}
+  .section-label{font-family:var(--mono); font-size:12px; color:var(--brass); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:14px;}
+  .section-title{font-family:var(--display); font-size:clamp(26px,3.4vw,36px); font-weight:600; letter-spacing:-0.01em; margin-bottom:14px;}
+  .section-desc{color:var(--text-muted); font-size:15px; line-height:1.7;}
+
+  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius-m); overflow:hidden;}
+  .step{background:var(--bg-elev); padding:36px 30px;}
+  .step-num{font-family:var(--mono); font-size:13px; color:var(--text-faint); margin-bottom:22px;}
+  .step-icon{width:34px; height:34px; margin-bottom:20px; color:var(--brass);}
+  .step-title{font-family:var(--display); font-size:19px; font-weight:600; margin-bottom:10px;}
+  .step-desc{color:var(--text-muted); font-size:14px; line-height:1.6;}
+  @media(max-width:800px){.steps{grid-template-columns:1fr;}}
+
+  /* property card */
+  .prop-feature{
+    display:grid; grid-template-columns:1fr 1fr; gap:0; border:1px solid var(--border);
+    border-radius:var(--radius-m); overflow:hidden; background:var(--bg-elev);
+  }
+  .prop-visual{position:relative; min-height:340px; background:
+      radial-gradient(circle at 30% 20%, rgba(201,162,39,0.10), transparent 60%), var(--surface);
+    display:flex; align-items:center; justify-content:center; border-right:1px solid var(--border);
+  }
+  .prop-info{padding:40px;}
+  .tag{display:inline-block; font-family:var(--mono); font-size:11px; padding:4px 10px; border:1px solid var(--border); border-radius:20px; color:var(--text-muted); margin-bottom:16px;}
+  .tag.live{border-color:var(--success); color:var(--success);}
+  .prop-title{font-family:var(--display); font-size:26px; font-weight:600; margin-bottom:8px;}
+  .prop-loc{color:var(--text-muted); font-size:14px; margin-bottom:24px;}
+  .progress-track{height:6px; background:var(--surface-2); border-radius:4px; overflow:hidden; margin-bottom:8px;}
+  .progress-fill{height:100%; background:linear-gradient(90deg, var(--brass), var(--brass-bright)); border-radius:4px;}
+  .progress-labels{display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--text-muted); margin-bottom:26px;}
+  .progress-labels strong{color:var(--text);}
+  .stat-row{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:28px;}
+  .stat-box .label{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:6px;}
+  .stat-box .val{font-family:var(--mono); font-size:17px; font-weight:600;}
+  .val.up{color:var(--success);}
+
+  /* rent teaser */
+  .rent-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:20px;}
+  .rent-card{border:1px solid var(--border); border-radius:var(--radius-m); overflow:hidden; background:var(--bg-elev); transition:border-color .2s, transform .2s;}
+  .rent-card:hover{border-color:var(--steel); transform:translateY(-4px);}
+  .rent-thumb{height:170px; position:relative; overflow:hidden;}
+  .rent-body{padding:18px 20px;}
+  .rent-name{font-weight:600; font-size:15px; margin-bottom:4px;}
+  .rent-meta{color:var(--text-muted); font-size:13px; margin-bottom:12px;}
+  .rent-price{font-family:var(--mono); font-size:15px; font-weight:600;}
+  .rent-price span{color:var(--text-faint); font-weight:400; font-size:12px;}
+  @media(max-width:800px){.rent-grid{grid-template-columns:1fr;} .prop-feature{grid-template-columns:1fr;}}
+
+  .jurisdiction-strip{
+    display:flex; align-items:center; gap:40px; padding:32px 40px; border-top:1px solid var(--border-soft);
+    border-bottom:1px solid var(--border-soft); flex-wrap:wrap; max-width:1200px; margin:0 auto;
+  }
+  .jur-item{display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:13px; color:var(--text-muted);}
+  .jur-item .dot2{width:6px;height:6px;border-radius:50%;background:var(--brass);}
+
+  footer{padding:60px 40px 40px; border-top:1px solid var(--border-soft);}
+  .footer-inner{max-width:1200px; margin:0 auto; display:flex; justify-content:space-between; flex-wrap:wrap; gap:30px;}
+  .footer-cols{display:flex; gap:70px; flex-wrap:wrap;}
+  .footer-col h4{font-size:12px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:14px;}
+  .footer-col a{display:block; font-size:14px; color:var(--text-muted); margin-bottom:10px; transition:color .2s;}
+  .footer-col a:hover{color:var(--brass);}
+  .footer-legal{font-size:12px; color:var(--text-faint); max-width:320px; line-height:1.6;}
+  .footer-bottom{max-width:1200px; margin:40px auto 0; padding-top:24px; border-top:1px solid var(--border-soft); font-size:12px; color:var(--text-faint);}
+
+  /* ===== DASHBOARD ===== */
+  .dash-header{padding:150px 40px 30px; max-width:1200px; margin:0 auto;}
+  .dash-title{font-family:var(--display); font-size:28px; font-weight:600;}
+  .dash-sub{color:var(--text-muted); font-size:14px; margin-top:6px;}
+  .dash-body{max-width:1200px; margin:0 auto; padding:20px 40px 100px;}
+  .kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:40px;}
+  .kpi-card{border:1px solid var(--border); background:var(--bg-elev); border-radius:var(--radius-m); padding:22px;}
+  .kpi-label{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px;}
+  .kpi-val{font-family:var(--mono); font-size:24px; font-weight:600;}
+  .kpi-delta{font-size:12px; margin-top:6px; font-family:var(--mono);}
+  .kpi-delta.pos{color:var(--success);}
+  @media(max-width:900px){.kpi-row{grid-template-columns:1fr 1fr;}}
+
+  .dash-section-title{font-family:var(--display); font-size:18px; font-weight:600; margin-bottom:18px;}
+  .holdings-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:48px;}
+  .holding-card{border:1px solid var(--border); background:var(--bg-elev); border-radius:var(--radius-m); padding:20px;}
+  .holding-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px;}
+  .holding-name{font-weight:600; font-size:15px;}
+  .holding-loc{font-size:12px; color:var(--text-muted); margin-top:2px;}
+  .ring{width:44px; height:44px; position:relative;}
+  .holding-stats{display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--text-muted); margin-top:14px; padding-top:14px; border-top:1px solid var(--border-soft);}
+  .holding-stats strong{color:var(--text); display:block; font-size:14px; margin-bottom:2px;}
+  @media(max-width:900px){.holdings-grid{grid-template-columns:1fr;}}
+
+  table{width:100%; border-collapse:collapse;}
+  th{text-align:left; font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; padding:0 14px 12px; font-weight:500;}
+  td{padding:14px; font-size:14px; border-top:1px solid var(--border-soft);}
+  tr td:first-child, th:first-child{padding-left:20px;}
+  .activity-table{border:1px solid var(--border); background:var(--bg-elev); border-radius:var(--radius-m); overflow:hidden;}
+  .activity-table thead{background:var(--surface);}
+  .type-pill{font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--border);}
+  .type-pill.rent{color:var(--success); border-color:var(--success);}
+  .type-pill.buy{color:var(--brass); border-color:var(--brass);}
+  .amt-pos{color:var(--success); font-family:var(--mono);}
+
+  /* ===== PROPERTY DETAIL ===== */
+  .prop-header{padding:150px 40px 0; max-width:1200px; margin:0 auto;}
+  .breadcrumb{font-family:var(--mono); font-size:12px; color:var(--text-muted); margin-bottom:24px;}
+  .breadcrumb a{color:var(--text-muted);} .breadcrumb a:hover{color:var(--brass);}
+  .prop-hero-visual{
+    height:320px; border-radius:var(--radius-m); border:1px solid var(--border); background:var(--bg-elev);
+    display:flex; align-items:center; justify-content:center; margin-bottom:40px; position:relative; overflow:hidden;
+  }
+  .prop-detail-grid{max-width:1200px; margin:0 auto; padding:0 40px 100px; display:grid; grid-template-columns:1.5fr 1fr; gap:50px;}
+  .tabs{display:flex; gap:26px; border-bottom:1px solid var(--border); margin-bottom:28px;}
+  .tab{padding:10px 0; font-size:14px; color:var(--text-muted); border-bottom:2px solid transparent; font-weight:600;}
+  .tab.active{color:var(--text); border-color:var(--brass);}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .info-block{margin-bottom:22px;}
+  .info-block h4{font-family:var(--display); font-size:15px; margin-bottom:8px;}
+  .info-block p{color:var(--text-muted); font-size:14px; line-height:1.7;}
+  .doc-row{display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid var(--border-soft); font-size:14px;}
+  .doc-row span{color:var(--text-muted);}
+  .buy-widget{border:1px solid var(--border); background:var(--bg-elev); border-radius:var(--radius-m); padding:26px; position:sticky; top:100px; height:fit-content;}
+  .buy-price{font-family:var(--mono); font-size:22px; font-weight:600; margin-bottom:2px;}
+  .buy-price span{font-size:13px; color:var(--text-faint); font-weight:400;}
+  .qty-row{display:flex; align-items:center; border:1px solid var(--border); border-radius:var(--radius-s); margin:20px 0; overflow:hidden;}
+  .qty-row button{background:var(--surface-2); border:none; color:var(--text); width:38px; height:40px; font-size:16px;}
+  .qty-row input{flex:1; text-align:center; background:transparent; border:none; color:var(--text); font-family:var(--mono); font-size:15px; width:40px;}
+  .qty-total{display:flex; justify-content:space-between; font-family:var(--mono); font-size:14px; margin-bottom:18px; color:var(--text-muted);}
+  .qty-total strong{color:var(--text);}
+
+  /* ===== RENT PAGE ===== */
+  .rent-header{padding:150px 40px 40px; max-width:1200px; margin:0 auto;}
+  .filter-bar{display:flex; gap:12px; margin-top:30px; flex-wrap:wrap;}
+  .filter-chip{border:1px solid var(--border); background:var(--bg-elev); padding:10px 18px; border-radius:20px; font-size:13px; color:var(--text-muted);}
+  .filter-chip.active{border-color:var(--brass); color:var(--brass-bright); background:var(--brass-dim);}
+  .rent-page-grid{max-width:1200px; margin:0 auto; padding:0 40px 100px; display:grid; grid-template-columns:repeat(3,1fr); gap:22px;}
+  @media(max-width:900px){.rent-page-grid{grid-template-columns:1fr 1fr;}}
+  @media(max-width:600px){.rent-page-grid{grid-template-columns:1fr;}}
+  .rating{font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:4px;}
+
+  /* toast */
+  #toast{
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--surface-2); border:1px solid var(--border); padding:13px 22px; border-radius:var(--radius-s);
+    font-size:13px; opacity:0; pointer-events:none; transition:all .3s; z-index:1000; font-family:var(--mono);
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* generic svg house illustration container */
+  .iso-svg{width:100%; height:100%; display:block;}
+</style>
+</head>
+<body>
+
+<div class="grid-texture"></div>
+
+<nav>
+  <div class="logo" onclick="go('landing')" style="cursor:pointer">
+    <svg class="logo-mark" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 8v3l10-6 10 6V8L12 2z" fill="#C9A227"/><path d="M4 12v10h5v-6h6v6h5V12l-8-5-8 5z" fill="#F3F1EA"/></svg>
+    CITADEL
+  </div>
+  <div class="nav-links">
+    <a class="nav-link" data-page="landing" onclick="go('landing')">Overview</a>
+    <a class="nav-link" data-page="property" onclick="go('property')">Citadel.build</a>
+    <a class="nav-link" data-page="dashboard" onclick="go('dashboard')">Dashboard</a>
+    <a class="nav-link" data-page="rent" onclick="go('rent')">Citadel.rent</a>
+  </div>
+  <button class="wallet-btn" id="walletBtn" onclick="connectWallet()">
+    <span class="dot"></span><span id="walletLabel">Connect Wallet</span>
+  </button>
+</nav>
+
+<!-- ================= LANDING ================= -->
+<div class="page active" id="page-landing">
+  <div class="hero">
+    <div class="hero-inner">
+      <div>
+        <div class="eyebrow">Fractional real estate protocol</div>
+        <h1 class="hero-title">Own the building,<br><span class="accent">block by block.</span></h1>
+        <p class="hero-sub">Citadel funds modular real estate through tokenized ownership. Hold your share and earn rental yield through Citadel.rent, or trade it whenever you want.</p>
+        <div class="hero-cta">
+          <button class="btn-primary" onclick="go('property')">Explore Citadel.build</button>
+          <button class="btn-secondary" onclick="go('rent')">Browse Citadel.rent</button>
+        </div>
+        <div class="hero-stats">
+          <div><div class="hero-stat-label">Funding open</div><div class="hero-stat-val">$100K</div></div>
+          <div><div class="hero-stat-label">Projected yield</div><div class="hero-stat-val">18–22%</div></div>
+          <div><div class="hero-stat-label">First jurisdiction</div><div class="hero-stat-val">Prospera</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="pyramid-wrap" id="pyramid"></div>
+        <div class="pyramid-caption">Roatán Duplex — <strong>500 tokens</strong>, 248 minted</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="jurisdiction-strip reveal">
+    <div class="jur-item"><span class="dot2"></span>Prospera ZEDE, Roatán — live</div>
+    <div class="jur-item"><span class="dot2"></span>El Salvador, Bitcoin City — evaluating</div>
+    <div class="jur-item"><span class="dot2"></span>Next network state jurisdiction — TBD</div>
+  </div>
+
+  <section>
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <div class="section-label">Process</div>
+        <h2 class="section-title">Three steps, one property</h2>
+        <p class="section-desc">Every Citadel development follows the same structure — a dedicated asset LLC, a token raise, and a lending partner to close the gap.</p>
+      </div>
+      <div class="steps reveal">
+        <div class="step">
+          <div class="step-num">01</div>
+          <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M2 12h20" stroke-linecap="round"/><rect x="5" y="5" width="14" height="14" rx="1"/></svg>
+          <div class="step-title">Fund</div>
+          <div class="step-desc">Token holders and a lending partner co-fund the build. Escrow releases only once the raise is complete.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12l9-9 9 9M5 10v10h14V10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="step-title">Earn</div>
+          <div class="step-desc">Hold your tokens and collect rental income directly, sourced from bookings on Citadel.rent.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <svg class="step-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l16 16M4 20L20 4" stroke-linecap="round" style="display:none"/><path d="M17 3l4 4-4 4M21 7H9M7 21l-4-4 4-4M3 17h12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="step-title">Trade</div>
+          <div class="step-desc">Sell your position on the secondary market anytime — even before the property is finished.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <div class="section-label">Live raise</div>
+        <h2 class="section-title">Featured development</h2>
+      </div>
+      <div class="prop-feature reveal">
+        <div class="prop-visual" id="featuredVisual"></div>
+        <div class="prop-info">
+          <span class="tag live">Funding open</span>
+          <div class="prop-title">Roatán Duplex — Unit A/B</div>
+          <div class="prop-loc">Prospera ZEDE, Roatán, Honduras</div>
+          <div class="progress-track"><div class="progress-fill" style="width:50%"></div></div>
+          <div class="progress-labels"><span><strong>$100,000</strong> raised</span><span>of $200,000</span></div>
+          <div class="stat-row">
+            <div class="stat-box"><div class="label">Price / token</div><div class="val">$200</div></div>
+            <div class="stat-box"><div class="label">Projected yield</div><div class="val up">18–22%</div></div>
+            <div class="stat-box"><div class="label">Loan partner</div><div class="val" style="font-size:14px">Tower Bank (BTC-collateralized)</div></div>
+            <div class="stat-box"><div class="label">Structure</div><div class="val" style="font-size:14px">Single-asset LLC</div></div>
+          </div>
+          <button class="btn-primary" onclick="go('property')" style="width:100%">View property</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <div class="section-label">Citadel.rent</div>
+        <h2 class="section-title">Stay in what you own</h2>
+        <p class="section-desc">Every Citadel property is bookable directly through Citadel.rent — the revenue flows straight back to token holders.</p>
+      </div>
+      <div class="rent-grid reveal" id="landingRentGrid"></div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= DASHBOARD ================= -->
+<div class="page" id="page-dashboard">
+  <div class="dash-header">
+    <div class="dash-title">Dashboard</div>
+    <div class="dash-sub" id="dashSub">Connect your wallet to see live holdings — showing sample portfolio.</div>
+  </div>
+  <div class="dash-body">
+    <div class="kpi-row">
+      <div class="kpi-card"><div class="kpi-label">Portfolio value</div><div class="kpi-val">$14,820</div><div class="kpi-delta pos">+6.4% this month</div></div>
+      <div class="kpi-card"><div class="kpi-label">Tokens held</div><div class="kpi-val">74</div><div class="kpi-delta" style="color:var(--text-faint)">across 2 properties</div></div>
+      <div class="kpi-card"><div class="kpi-label">Monthly rental income</div><div class="kpi-val">$212</div><div class="kpi-delta pos">paid in USDC</div></div>
+      <div class="kpi-card"><div class="kpi-label">Avg. projected yield</div><div class="kpi-val">19.1%</div><div class="kpi-delta" style="color:var(--text-faint)">annualized</div></div>
+    </div>
+
+    <div class="dash-section-title">Your properties</div>
+    <div class="holdings-grid" id="holdingsGrid"></div>
+
+    <div class="dash-section-title">Recent activity</div>
+    <div class="activity-table">
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Property</th><th>Amount</th></tr></thead>
+        <tbody id="activityBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ================= PROPERTY DETAIL ================= -->
+<div class="page" id="page-property">
+  <div class="prop-header">
+    <div class="breadcrumb"><a onclick="go('landing')">Citadel.build</a> / Roatán Duplex</div>
+    <div class="prop-hero-visual" id="propDetailVisual"></div>
+  </div>
+  <div class="prop-detail-grid">
+    <div>
+      <span class="tag live">Funding open · 14 days left</span>
+      <h1 style="font-family:var(--display); font-size:30px; font-weight:600; margin:14px 0 4px;">Roatán Duplex — Unit A/B</h1>
+      <div class="prop-loc" style="margin-bottom:30px;">Prospera ZEDE, Roatán, Honduras</div>
+
+      <div class="tabs">
+        <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" data-tab="financials" onclick="switchTab('financials')">Financials</div>
+        <div class="tab" data-tab="structure" onclick="switchTab('structure')">Ownership</div>
+        <div class="tab" data-tab="docs" onclick="switchTab('docs')">Documents</div>
+      </div>
+
+      <div class="tab-panel active" id="tab-overview">
+        <div class="info-block">
+          <h4>About this development</h4>
+          <p>A modular, two-unit duplex on Roatán — Citadel's first pilot property. Built for short-term rental through Citadel.rent, with a design intended to be replicated across future sites once the model proves out.</p>
+        </div>
+        <div class="info-block">
+          <h4>Why this property</h4>
+          <p>Small enough to fund quickly, standardized enough to template for the next ten. Prospera's ZEDE framework gives Citadel a clear legal path to issue the raise without waiting on slower jurisdictions.</p>
+        </div>
+      </div>
+      <div class="tab-panel" id="tab-financials">
+        <div class="info-block"><h4>Total development cost</h4><p>$200,000 — $100,000 raised via tokens, $100,000 via a BTC-collateralized loan from Tower Bank.</p></div>
+        <div class="info-block"><h4>Projected rental yield</h4><p>18–22% annualized, based on comparable short-term rental performance on Roatán, distributed monthly in USDC.</p></div>
+        <div class="info-block"><h4>Exit options</h4><p>Sell your token position on the secondary market at any time, or hold for ongoing rental income.</p></div>
+      </div>
+      <div class="tab-panel" id="tab-structure">
+        <div class="info-block"><h4>Legal structure</h4><p>Owned by a single-asset LLC formed under Citadel LLC (Prospera ZEDE). Token holders hold a membership interest in this LLC, proportional to tokens held.</p></div>
+        <div class="info-block"><h4>Custody</h4><p>Funds remain in the asset LLC's on-chain wallet through the raise. Once escrow conditions are met, funds are released to the LLC's bank account for construction draws.</p></div>
+      </div>
+      <div class="tab-panel" id="tab-docs">
+        <div class="doc-row">Operating agreement <span>PDF · placeholder</span></div>
+        <div class="doc-row">Token terms <span>PDF · placeholder</span></div>
+        <div class="doc-row">Appraisal report <span>PDF · placeholder</span></div>
+        <div class="doc-row">Escrow agreement <span>PDF · placeholder</span></div>
+      </div>
+    </div>
+
+    <div class="buy-widget">
+      <div class="progress-track"><div class="progress-fill" style="width:50%"></div></div>
+      <div class="progress-labels"><span><strong>$100,000</strong> raised</span><span>of $200,000</span></div>
+      <div class="buy-price">$200 <span>/ token</span></div>
+      <div class="qty-row">
+        <button onclick="changeQty(-1)">−</button>
+        <input type="text" id="qtyInput" value="5" readonly>
+        <button onclick="changeQty(1)">+</button>
+      </div>
+      <div class="qty-total"><span>Total</span><strong id="qtyTotal">$1,000</strong></div>
+      <button class="btn-primary" style="width:100%" onclick="mockBuy()">Buy tokens</button>
+      <p style="font-size:12px; color:var(--text-faint); margin-top:14px; line-height:1.6;">Settled in USDC. 252 of 500 tokens remaining.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ================= RENT ================= -->
+<div class="page" id="page-rent">
+  <div class="rent-header">
+    <div class="section-label">Citadel.rent</div>
+    <h1 style="font-family:var(--display); font-size:32px; font-weight:600;">Stay in a Citadel property</h1>
+    <p class="section-desc" style="margin-top:10px;">Every booking pays rental yield directly to the token holders who own that property.</p>
+    <div class="filter-bar">
+      <div class="filter-chip active">All stays</div>
+      <div class="filter-chip">Roatán</div>
+      <div class="filter-chip">Coming soon</div>
+    </div>
+  </div>
+  <div class="rent-page-grid" id="rentPageGrid"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ---------- ROUTING ---------- */
+function go(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(l=>l.classList.toggle('active', l.dataset.page===page));
+  window.scrollTo({top:0, behavior:'instant'});
+  observeReveals();
+}
+
+/* ---------- WALLET (real, via injected provider) ---------- */
+let walletState = { connected:false, address:null, balance:null };
+async function connectWallet(){
+  if(walletState.connected){ showToast('Wallet already connected'); return; }
+  if(typeof window.ethereum === 'undefined'){
+    showToast('No injected wallet found — install MetaMask to connect.');
+    return;
+  }
+  try{
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const accounts = await provider.send('eth_requestAccounts', []);
+    const address = accounts[0];
+    const balanceWei = await provider.getBalance(address);
+    const balance = parseFloat(ethers.utils.formatEther(balanceWei)).toFixed(4);
+    walletState = { connected:true, address, balance };
+    const btn = document.getElementById('walletBtn');
+    btn.classList.add('connected');
+    document.getElementById('walletLabel').textContent = address.slice(0,6)+'…'+address.slice(-4);
+    document.getElementById('dashSub').textContent = 'Connected as '+address.slice(0,6)+'…'+address.slice(-4)+' · '+balance+' ETH';
+    showToast('Wallet connected');
+  }catch(err){
+    showToast(err.code === 4001 ? 'Connection request rejected' : 'Could not connect wallet');
+  }
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ---------- PYRAMID SIGNATURE ---------- */
+function buildPyramid(){
+  const rows = [3,5,7,9,11,13,15,17];
+  const wrap = document.getElementById('pyramid');
+  wrap.innerHTML = '';
+  let delay = 0;
+  rows.forEach((count)=>{
+    const row = document.createElement('div');
+    row.className = 'pyramid-row';
+    for(let i=0;i<count;i++){
+      const b = document.createElement('div');
+      const fillProb = 0.5;
+      b.className = 'token-block' + (Math.random() < fillProb ? ' filled' : '');
+      b.style.animationDelay = (delay*0.012)+'s';
+      row.appendChild(b);
+      delay++;
+    }
+    wrap.appendChild(row);
+  });
+}
+
+/* ---------- VISUAL ILLUSTRATIONS (inline SVG, isometric duplex) ---------- */
+function isoDuplexSVG(glow){
+  return `<svg class="iso-svg" viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${glow?'#E8C766':'#3a4048'}"/>
+      <stop offset="100%" stop-color="${glow?'#C9A227':'#20242b'}"/>
+    </linearGradient></defs>
+    <g stroke="#262B33" stroke-width="1">
+      <polygon points="150,40 230,80 230,150 150,190 70,150 70,80" fill="url(#g1)" opacity="0.9"/>
+      <polygon points="150,40 230,80 150,120 70,80" fill="#2a2f37"/>
+      <line x1="150" y1="120" x2="150" y2="190" stroke="#0A0C0F" stroke-width="1.5"/>
+      <rect x="90" y="100" width="18" height="24" fill="#0A0C0F" opacity="0.5"/>
+      <rect x="192" y="100" width="18" height="24" fill="#0A0C0F" opacity="0.5"/>
+      <rect x="130" y="150" width="20" height="30" fill="#0A0C0F" opacity="0.6"/>
+      <rect x="152" y="150" width="20" height="30" fill="#0A0C0F" opacity="0.6"/>
+    </g>
+  </svg>`;
+}
+function rentThumbSVG(seed){
+  const hue = 38 + (seed*11)%20;
+  return `<svg class="iso-svg" viewBox="0 0 300 170" xmlns="http://www.w3.org/2000/svg">
+    <rect width="300" height="170" fill="#161A20"/>
+    <polygon points="150,30 220,65 220,140 80,140 80,65" fill="hsl(${hue},35%,22%)"/>
+    <polygon points="150,30 220,65 150,95 80,65" fill="hsl(${hue},30%,28%)"/>
+    <rect x="120" y="105" width="16" height="35" fill="#0A0C0F" opacity="0.55"/>
+    <rect x="165" y="105" width="16" height="35" fill="#0A0C0F" opacity="0.4"/>
+    <circle cx="255" cy="30" r="14" fill="#C9A227" opacity="0.5"/>
+  </svg>`;
+}
+
+/* ---------- DATA / RENDER ---------- */
+const rentals = [
+  {name:'Duplex Unit A', loc:'Roatán, Prospera', price:142, rating:'New listing'},
+  {name:'Duplex Unit B', loc:'Roatán, Prospera', price:128, rating:'New listing'},
+  {name:'Next site', loc:'Location TBD', price:null, rating:'Coming soon'},
+];
+function renderRentGrids(){
+  const mk = (r,i)=>`<div class="rent-card">
+      <div class="rent-thumb">${rentThumbSVG(i)}</div>
+      <div class="rent-body">
+        <div class="rent-name">${r.name}</div>
+        <div class="rent-meta">${r.loc} · ${r.rating}</div>
+        <div class="rent-price">${r.price? '$'+r.price+' <span>/ night</span>' : '<span>Booking opens soon</span>'}</div>
+      </div>
+    </div>`;
+  document.getElementById('landingRentGrid').innerHTML = rentals.map(mk).join('');
+  document.getElementById('rentPageGrid').innerHTML = rentals.concat([
+    {name:'Duplex Unit A · long stay', loc:'Roatán, Prospera', price:2100, rating:'Monthly rate'},
+    {name:'Waitlist site 2', loc:'Location TBD', price:null, rating:'Coming soon'},
+    {name:'Waitlist site 3', loc:'Location TBD', price:null, rating:'Coming soon'},
+  ]).map(mk).join('');
+}
+
+const holdings = [
+  {name:'Roatán Duplex', loc:'Prospera, Roatán', tokens:62, value:12400, rent:184},
+  {name:'Next pilot site', loc:'Location TBD', tokens:12, value:2420, rent:28},
+];
+function renderHoldings(){
+  document.getElementById('holdingsGrid').innerHTML = holdings.map(h=>`
+    <div class="holding-card">
+      <div class="holding-top">
+        <div><div class="holding-name">${h.name}</div><div class="holding-loc">${h.loc}</div></div>
+      </div>
+      <div class="holding-stats">
+        <div><strong>${h.tokens}</strong>tokens</div>
+        <div><strong>$${h.value.toLocaleString()}</strong>value</div>
+        <div><strong>$${h.rent}</strong>mo. rent</div>
+      </div>
+    </div>`).join('');
+}
+const activity = [
+  {date:'Aug 01', type:'rent', label:'Rent payout', prop:'Roatán Duplex', amt:'+$184.00'},
+  {date:'Jul 14', type:'buy', label:'Token purchase', prop:'Roatán Duplex', amt:'−$1,000.00'},
+  {date:'Jul 01', type:'rent', label:'Rent payout', prop:'Roatán Duplex', amt:'+$176.50'},
+  {date:'Jun 22', type:'buy', label:'Token purchase', prop:'Next pilot site', amt:'−$2,420.00'},
+];
+function renderActivity(){
+  document.getElementById('activityBody').innerHTML = activity.map(a=>`
+    <tr>
+      <td style="color:var(--text-muted)">${a.date}</td>
+      <td><span class="type-pill ${a.type}">${a.label}</span></td>
+      <td>${a.prop}</td>
+      <td class="${a.amt[0]==='+'?'amt-pos':''}" style="font-family:var(--mono)">${a.amt}</td>
+    </tr>`).join('');
+}
+
+/* ---------- BUY WIDGET ---------- */
+function changeQty(d){
+  const input = document.getElementById('qtyInput');
+  let v = Math.max(1, parseInt(input.value)+d);
+  input.value = v;
+  document.getElementById('qtyTotal').textContent = '$'+(v*200).toLocaleString();
+}
+function mockBuy(){
+  if(!walletState.connected){ connectWallet(); return; }
+  showToast('Purchase simulated — '+document.getElementById('qtyInput').value+' tokens');
+}
+
+/* ---------- TABS ---------- */
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active', p.id==='tab-'+name));
+}
+
+/* ---------- SCROLL REVEAL + PARALLAX ---------- */
+let io;
+function observeReveals(){
+  document.querySelectorAll('.reveal:not(.visible)').forEach(el=>io.observe(el));
+}
+function initReveal(){
+  io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); } });
+  }, {threshold:0.15});
+  observeReveals();
+}
+window.addEventListener('scroll', ()=>{
+  const y = window.scrollY;
+  const pyr = document.getElementById('pyramid');
+  if(pyr && document.getElementById('page-landing').classList.contains('active')){
+    pyr.style.transform = 'translateY('+(y*0.12)+'px) rotateX('+Math.min(y*0.01,6)+'deg)';
+  }
+}, {passive:true});
+
+/* ---------- INIT ---------- */
+window.addEventListener('DOMContentLoaded', ()=>{
+  buildPyramid();
+  document.getElementById('featuredVisual').innerHTML = isoDuplexSVG(true);
+  document.getElementById('propDetailVisual').innerHTML = isoDuplexSVG(true);
+  renderRentGrids();
+  renderHoldings();
+  renderActivity();
+  initReveal();
+  changeQty(0);
+});
+</script>
+</body>
+</html>

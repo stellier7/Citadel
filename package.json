@@ -1,0 +1,10 @@
+{
+  "name": "citadel",
+  "version": "1.0.0",
+  "description": "Citadel — decentralized fractional real estate platform",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes serve . -p 3000",
+    "dev": "npm run start"
+  }
+}
